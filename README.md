@@ -41,7 +41,11 @@ against an installed release build.
 
 You need four things:
 
-1. **[uv](https://docs.astral.sh/uv/)**. Use it to install and run pob-mcp.
+1. **A way to install a Python package.** We recommend
+   **[uv](https://docs.astral.sh/uv/)** — it's the fastest path and what the
+   rest of this README shows first. Don't want another tool on your machine?
+   Plain `pip` and a virtual environment work fine too; see the alternate
+   commands below.
 2. **[LuaJIT](https://luajit.org/)**, a 5.1-compatible build. Put it on your
    `PATH` as `luajit`, or point to it with `POB_MCP_LUAJIT`. You need this
    separately from PoB itself: PoB's own runtime only ships
@@ -98,12 +102,28 @@ cd pob-mcp
 uv sync
 ```
 
+**Don't want to use uv?** You don't need it. pob-mcp is a normal Python
+package — plain `pip` works too:
+
+```bash
+git clone <this repo, or wherever you put pob-mcp> pob-mcp
+cd pob-mcp
+python -m venv .venv
+.venv/bin/pip install -e .        # Windows: .venv\Scripts\pip install -e .
+```
+
 ## Run it on its own (for testing)
 
 ```bash
 POB_MCP_SOURCE_DIR=/path/to/PathOfBuilding-PoE2 uv run pob-mcp
 # or, against an installed release:
 POB_MCP_INSTALL_DIR="C:\Users\you\AppData\Roaming\Path of Building Community (PoE2)" uv run pob-mcp
+```
+
+With a plain `pip` install, the same thing looks like:
+
+```bash
+POB_MCP_SOURCE_DIR=/path/to/PathOfBuilding-PoE2 .venv/bin/pob-mcp   # Windows: .venv\Scripts\pob-mcp.exe
 ```
 
 This starts the MCP server over stdio. You won't see much happen — MCP
@@ -150,6 +170,25 @@ folder of your installed release — on Windows, usually
 Restart your client after you edit its config. You don't need to close Path
 of Building itself. pob-mcp only reads game data from the install folder.
 It never writes to it, so it runs fine alongside the app.
+
+**With a plain `pip` install** (no `uv`), point `command` straight at the
+executable pip created in your virtual environment instead — no `args`
+needed:
+
+```json
+{
+  "mcpServers": {
+    "pob-mcp": {
+      "command": "C:\\path\\to\\pob-mcp\\.venv\\Scripts\\pob-mcp.exe",
+      "env": {
+        "POB_MCP_INSTALL_DIR": "C:\\Users\\you\\AppData\\Roaming\\Path of Building Community (PoE2)"
+      }
+    }
+  }
+}
+```
+
+(On macOS/Linux, that's `/path/to/pob-mcp/.venv/bin/pob-mcp`.)
 
 ### Environment variables
 
