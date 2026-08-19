@@ -1,0 +1,137 @@
+name: Watch for new PoB-PoE2 releases
+
+# pob_bridge.lua assumes specific internal PathOfBuilding-PoE2 Lua APIs
+# (AllocNode, SaveDB, ItemsTab/TreeTab internals, the manifest.cfg layout,
+# ...). A new upstream release is exactly the kind of thing that could
+# silently break those assumptions, so this doesn't just notify -- it checks
+# out the new release and actually runs the bridge test suite against it,
+# then only opens an issue when there's something worth looking at.
+
+on:
+  schedule:
+    - cron: "0 12 * * 1" # Monday 12:00 UTC
+  workflow_dispatch:
+    inputs:
+      force_check:
+        description: "Run the compatibility check even if this release was already tracked"
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  check-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: read
+    outputs:
+      run_check: ${{ steps.decide.outputs.run_check }}
+      tag: ${{ steps.latest.outputs.tag }}
+    steps:
+      - name: Get latest PathOfBuilding-PoE2 release
+        id: latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag=$(gh api repos/PathOfBuildingCommunity/PathOfBuilding-PoE2/releases/latest --jq .tag_name)
+          echo "Latest upstream release: $tag"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Check whether this release is already tracked
+        id: decide
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          title="PoB-PoE2 ${{ steps.latest.outputs.tag }} released"
+          existing=$(gh issue list --repo "${{ github.repository }}" --state all \
+            --search "in:title \"$title\"" --json number --jq 'length')
+          if [ "$existing" -gt 0 ] && [ "${{ github.event.inputs.force_check }}" != "true" ]; then
+            echo "Already tracked in issue(s) matching '$title' -- skipping."
+            echo "run_check=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "run_check=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  compatibility-check:
+    needs: check-release
+    if: needs.check-release.outputs.run_check == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout pob-mcp
+        uses: actions/checkout@v4
+
+      - name: Checkout PathOfBuilding-PoE2 at ${{ needs.check-release.outputs.tag }}
+        uses: actions/checkout@v4
+        with:
+          repository: PathOfBuildingCommunity/PathOfBuilding-PoE2
+          ref: ${{ needs.check-release.outputs.tag }}
+          path: PathOfBuilding-PoE2
+
+      - name: Install LuaJIT and lua-utf8
+        # Mirrors PathOfBuilding-PoE2's own test Docker image: the release checkout's
+        # bundled lua-utf8 is a Windows DLL, so Linux needs its own native build.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y luajit luarocks build-essential
+          sudo luarocks install luautf8
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Install pob-mcp
+        run: uv sync
+
+      - name: Run bridge tests against the new release
+        id: test
+        continue-on-error: true
+        env:
+          POB_MCP_SOURCE_DIR: ${{ github.workspace }}/PathOfBuilding-PoE2
+        run: uv run pytest tests/test_bridge_protocol.py -v | tee test-output.log
+
+      - name: Ensure tracking label exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create "pob-release" --repo "${{ github.repository }}" \
+            --color "0E8A16" --description "Tracks a new PathOfBuilding-PoE2 release" --force
+
+      - name: Open tracking issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.check-release.outputs.tag }}
+          OUTCOME: ${{ steps.test.outcome }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ "$OUTCOME" = "success" ]; then
+            status_line="Bridge tests **passed** against this release. No action needed unless something else looks off."
+            extra_label=""
+          else
+            status_line="Bridge tests **failed** against this release -- pob_bridge.lua likely needs updating for an internal API change."
+            extra_label=",bug"
+          fi
+
+          {
+            echo "PathOfBuilding-PoE2 released **$TAG**."
+            echo ""
+            echo "$status_line"
+            echo ""
+            echo "- Release notes: https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2/releases/tag/$TAG"
+            echo "- Full test log: $RUN_URL"
+            echo ""
+            echo "<details><summary>Test output (tail)</summary>"
+            echo ""
+            echo '```'
+            tail -n 60 test-output.log
+            echo '```'
+            echo "</details>"
+          } > issue-body.md
+
+          gh issue create --repo "${{ github.repository }}" \
+            --title "PoB-PoE2 $TAG released" \
+            --label "pob-release$extra_label" \
+            --body-file issue-body.md
