@@ -1,0 +1,118 @@
+name: Bug report
+description: Something in pob-mcp itself is broken (a tool errors, returns the wrong shape, or the bridge won't start).
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. Please fill in as much as you can — fields marked (*) are required.
+
+        **Is this actually a pob-mcp bug?** pob-mcp doesn't calculate anything itself — every stat
+        comes straight from Path of Building's own engine. If a *number* looks wrong (DPS, EHP,
+        resistances, etc.) but the tool call itself worked without error, that's very likely a PoB
+        calculation issue, not a pob-mcp one. Please report those to
+        [PathOfBuildingCommunity/PathOfBuilding-PoE2](https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2/issues)
+        instead — include a build code either way, it helps both projects.
+
+        This tracker is for: a tool erroring out, returning malformed data, the bridge failing to
+        start or hanging, wrong tool behavior (e.g. `alloc_node` not updating `get_tree_state`), or
+        install/setup problems.
+  - type: checkboxes
+    id: duplicates
+    attributes:
+      label: Check for duplicates
+      options:
+        - label: I searched open and closed issues and didn't find this already reported
+          required: true
+  - type: checkboxes
+    id: not-a-calc-bug
+    attributes:
+      label: Scope check
+      options:
+        - label: This is about pob-mcp's behavior (a tool call, the bridge, or setup) -- not a PoB stat/calculation that looks wrong
+          required: true
+  - type: dropdown
+    id: mode
+    attributes:
+      label: How is pob-mcp pointed at PoB?
+      options:
+        - Dev checkout mode (POB_MCP_SOURCE_DIR)
+        - Release mode (POB_MCP_INSTALL_DIR)
+        - Auto-detected (neither env var set)
+        - Not sure
+    validations:
+      required: true
+  - type: dropdown
+    id: client
+    attributes:
+      label: MCP client
+      options:
+        - Claude Desktop
+        - Claude Code
+        - Cursor
+        - Other / custom client
+    validations:
+      required: true
+  - type: input
+    id: os
+    attributes:
+      label: Operating system
+      placeholder: e.g. Windows 11, macOS 15, Ubuntu 24.04
+    validations:
+      required: true
+  - type: input
+    id: luajit
+    attributes:
+      label: LuaJIT version
+      description: Output of `luajit -v`
+      placeholder: e.g. LuaJIT 2.1.1234567890
+    validations:
+      required: false
+  - type: input
+    id: commit
+    attributes:
+      label: pob-mcp version / commit
+      description: Output of `git rev-parse HEAD` in your pob-mcp checkout, if you know it
+    validations:
+      required: false
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect to happen?
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: What actually happened?
+      description: Include the exact error message or tool response if you have it.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Set POB_MCP_INSTALL_DIR to ...
+        2. Call load_build with ...
+        3. Call optimize_build with ...
+    validations:
+      required: false
+  - type: textarea
+    id: build_code
+    attributes:
+      label: Build code
+      description: A PoB export code or link for the build you were working with, if the bug is build-specific.
+      render: shell
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        Bridge stderr output is often the key to diagnosing this. Set `POB_MCP_LOG_LEVEL=DEBUG`
+        before starting pob-mcp to capture it.
+      render: shell
+    validations:
+      required: false

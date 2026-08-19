@@ -1,5 +1,10 @@
 # pob-mcp
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE.md)
+[![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-blue.svg)](pyproject.toml)
+[![PRs welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/juddisjudd/pob-mcp/pulls)
+[![Support on Ko-fi](https://img.shields.io/badge/Ko--fi-Support-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/ohitsjudd)
+
 pob-mcp is an MCP server. It lets an LLM load, inspect, change, and improve
 [Path of Exile 2](https://www.pathofexile.com/) builds. It uses the real
 calculation engine from [Path of Building Community (PoE2

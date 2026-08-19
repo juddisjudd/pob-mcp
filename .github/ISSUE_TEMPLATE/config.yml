@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: PoB calculation looks wrong?
+    url: https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2/issues
+    about: If a stat/number is wrong but pob-mcp's tool calls worked fine, that's almost always a Path of Building engine issue -- report it upstream instead.
+  - name: Support this project
+    url: https://ko-fi.com/ohitsjudd
+    about: If pob-mcp has been useful to you, consider buying me a coffee.

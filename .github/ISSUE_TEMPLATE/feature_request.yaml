@@ -1,0 +1,33 @@
+name: Feature request
+description: Suggest a new tool, or an improvement to an existing one.
+labels: [enhancement]
+body:
+  - type: checkboxes
+    id: duplicates
+    attributes:
+      label: Check for duplicates
+      options:
+        - label: I searched open and closed issues and didn't find this already requested
+          required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: Describe the workflow or question this would help with, not just the feature itself.
+      placeholder: e.g. "I want to ask the LLM to find the cheapest way to cap my resistances."
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like pob-mcp to do?
+      description: A new tool, a new parameter on an existing tool, a change to what a tool returns, etc.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Anything you've already tried?
+      description: E.g. combining existing tools, or how another tool (in-game, another PoB fork's MCP, etc.) handles this.
+    validations:
+      required: false
