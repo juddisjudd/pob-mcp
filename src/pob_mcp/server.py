@@ -44,22 +44,32 @@ mcp = MCPServer(
         "build file path. Then use get_stats/get_character/get_tree_state/get_items/get_skills/"
         "get_config/sanity_check to inspect it, search_tree/node_info to explore the passive tree, "
         "alloc_node/dealloc_node/select_class/equip_item_raw/unequip_item/set_gem/add_gem/"
-        "remove_gem/set_main_skill/set_config to change it, compare_builds to diff two builds, "
-        "export_build to get XML or a shareable code back out, and optimize_build to run a "
-        "goal-directed (damage/defence/balanced) search over the tree, support gems, and local "
-        "unique items."
+        "remove_gem/set_main_skill/set_config to change it, list_specs/list_item_sets (and "
+        "select/create/copy/rename/delete for each) to manage a build's alternate passive tree "
+        "specs and gear sets, compare_builds to diff two builds, export_build to get XML or a "
+        "shareable code back out, and optimize_build to run a goal-directed (damage/defence/"
+        "balanced) search over the tree, support gems, and local unique items."
     ),
     lifespan=app_lifespan,
 )
 
 # Imported after `mcp` is constructed: each module's register() attaches its
 # tools to this instance.
-from . import tools_compare, tools_export, tools_inspect, tools_local, tools_mutate, tools_treesearch  # noqa: E402
+from . import (  # noqa: E402
+    tools_compare,
+    tools_export,
+    tools_inspect,
+    tools_local,
+    tools_mutate,
+    tools_specs,
+    tools_treesearch,
+)
 from .optimizer import tool as optimizer_tool  # noqa: E402
 
 tools_inspect.register(mcp)
 tools_mutate.register(mcp)
 tools_treesearch.register(mcp)
+tools_specs.register(mcp)
 tools_compare.register(mcp)
 tools_export.register(mcp)
 tools_local.register(mcp)

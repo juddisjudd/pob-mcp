@@ -730,6 +730,103 @@ methods.select_class = function(params)
 	return { ok = true }
 end
 
+-- A build can hold several named passive tree specs (PoB's "Manage Trees" popup) and
+-- switch between them; build.spec always points at whichever one is active. Every
+-- existing tree tool (get_tree_state, alloc_node, search_tree, ...) already reads
+-- through build.spec dynamically, so switching specs here makes them operate on the
+-- newly-active one automatically -- no changes needed there.
+
+methods.list_specs = function()
+	ensureBuildLoaded()
+	local specs = json.array({ })
+	for index, spec in ipairs(build.treeTab.specList) do
+		local ascendName = spec.curAscendClassName
+		-- Count directly (not spec:CountAllocNodes(), which excludes the automatic
+		-- class-start node) so this always agrees with get_tree_state's count for
+		-- the same spec.
+		local allocCount = 0
+		for _, node in pairs(spec.nodes) do
+			if node.alloc then
+				allocCount = allocCount + 1
+			end
+		end
+		specs[#specs + 1] = {
+			index = index,
+			title = spec.title or "Default",
+			className = spec.curClassName,
+			ascendClassName = (ascendName and ascendName ~= "None") and ascendName or json.null,
+			allocatedNodeCount = allocCount,
+			treeVersion = spec.treeVersion,
+			active = (index == build.treeTab.activeSpec),
+		}
+	end
+	return { specs = specs, activeSpec = build.treeTab.activeSpec }
+end
+
+methods.select_spec = function(params)
+	ensureBuildLoaded()
+	local index = tonumber(params and params.index)
+	if not index then error("params.index is required", 0) end
+	if not build.treeTab.specList[index] then error("unknown spec index " .. tostring(params.index), 0) end
+	build.treeTab:SetActiveSpec(index)
+	refreshBuild()
+	return { ok = true }
+end
+
+methods.create_spec = function(params)
+	ensureBuildLoaded()
+	local newSpec = new("PassiveSpec", build, build.spec.treeVersion)
+	newSpec.title = (params and params.title) or "New Tree"
+	newSpec:SelectClass(build.spec.curClassId)
+	newSpec:SelectAscendClass(build.spec.curAscendClassId)
+	newSpec:SelectSecondaryAscendClass(build.spec.curSecondaryAscendClassId)
+	table.insert(build.treeTab.specList, newSpec)
+	local newIndex = #build.treeTab.specList
+	if not params or params.activate ~= false then
+		build.treeTab:SetActiveSpec(newIndex)
+	end
+	refreshBuild()
+	return { ok = true, index = newIndex }
+end
+
+methods.copy_spec = function(params)
+	ensureBuildLoaded()
+	local sourceIndex = tonumber(params and params.sourceIndex) or build.treeTab.activeSpec
+	if not build.treeTab.specList[sourceIndex] then error("unknown spec index " .. tostring(sourceIndex), 0) end
+	build.treeTab:CopyTree(sourceIndex, params and params.title)
+	local newIndex = #build.treeTab.specList
+	if not params or params.activate ~= false then
+		build.treeTab:SetActiveSpec(newIndex)
+	end
+	refreshBuild()
+	return { ok = true, index = newIndex }
+end
+
+methods.rename_spec = function(params)
+	ensureBuildLoaded()
+	local index = tonumber(params and params.index)
+	if not index then error("params.index is required", 0) end
+	local spec = build.treeTab.specList[index]
+	if not spec then error("unknown spec index " .. tostring(params.index), 0) end
+	if not params.title then error("params.title is required", 0) end
+	spec.title = params.title
+	return { ok = true }
+end
+
+methods.delete_spec = function(params)
+	ensureBuildLoaded()
+	local index = tonumber(params and params.index)
+	if not index then error("params.index is required", 0) end
+	if not build.treeTab.specList[index] then error("unknown spec index " .. tostring(params.index), 0) end
+	if #build.treeTab.specList <= 1 then error("cannot delete the only remaining tree spec", 0) end
+	table.remove(build.treeTab.specList, index)
+	if index == build.treeTab.activeSpec or build.treeTab.activeSpec > #build.treeTab.specList then
+		build.treeTab:SetActiveSpec(math.max(1, index - 1))
+	end
+	refreshBuild()
+	return { ok = true }
+end
+
 methods.list_slots = function()
 	ensureBuildLoaded()
 	local slots = json.array({ })
@@ -745,6 +842,88 @@ methods.list_slots = function()
 		}
 	end
 	return { slots = slots }
+end
+
+-- A build can hold several named gear sets (PoB's item-set dropdown) and switch
+-- between them; itemsTab.slots always reflects whichever one is active, so
+-- list_slots/equip_item_raw/unequip_item already operate on the active set with
+-- no changes needed once it's switched here.
+
+methods.list_item_sets = function()
+	ensureBuildLoaded()
+	local sets = json.array({ })
+	for _, id in ipairs(build.itemsTab.itemSetOrderList) do
+		local set = build.itemsTab.itemSets[id]
+		sets[#sets + 1] = {
+			id = id,
+			title = set.title or "Default",
+			active = (id == build.itemsTab.activeItemSetId),
+		}
+	end
+	return { itemSets = sets, activeItemSet = build.itemsTab.activeItemSetId }
+end
+
+methods.select_item_set = function(params)
+	ensureBuildLoaded()
+	local id = tonumber(params and params.id)
+	if not id then error("params.id is required", 0) end
+	if not build.itemsTab.itemSets[id] then error("unknown item set id " .. tostring(params.id), 0) end
+	build.itemsTab:SetActiveItemSet(id)
+	refreshBuild()
+	return { ok = true }
+end
+
+methods.create_item_set = function(params)
+	ensureBuildLoaded()
+	local newSet = build.itemsTab:NewItemSet(nil, (params and params.title) or "New Set")
+	if not params or params.activate ~= false then
+		build.itemsTab:SetActiveItemSet(newSet.id)
+	end
+	refreshBuild()
+	return { ok = true, id = newSet.id }
+end
+
+methods.copy_item_set = function(params)
+	ensureBuildLoaded()
+	local sourceId = tonumber(params and params.sourceId) or build.itemsTab.activeItemSetId
+	if not build.itemsTab.itemSets[sourceId] then error("unknown item set id " .. tostring(sourceId), 0) end
+	local newSet = build.itemsTab:CopyItemSet(sourceId, params and params.title)
+	if not params or params.activate ~= false then
+		build.itemsTab:SetActiveItemSet(newSet.id)
+	end
+	refreshBuild()
+	return { ok = true, id = newSet.id }
+end
+
+methods.rename_item_set = function(params)
+	ensureBuildLoaded()
+	local id = tonumber(params and params.id)
+	if not id then error("params.id is required", 0) end
+	if not build.itemsTab.itemSets[id] then error("unknown item set id " .. tostring(params.id), 0) end
+	if not params.title then error("params.title is required", 0) end
+	build.itemsTab:RenameItemSet(id, params.title)
+	return { ok = true }
+end
+
+methods.delete_item_set = function(params)
+	ensureBuildLoaded()
+	local id = tonumber(params and params.id)
+	if not id then error("params.id is required", 0) end
+	if not build.itemsTab.itemSets[id] then error("unknown item set id " .. tostring(params.id), 0) end
+	if #build.itemsTab.itemSetOrderList <= 1 then error("cannot delete the only remaining item set", 0) end
+	local orderIndex
+	for i, sid in ipairs(build.itemsTab.itemSetOrderList) do
+		if sid == id then
+			orderIndex = i
+			break
+		end
+	end
+	build.itemsTab:DeleteItemSet(id, orderIndex)
+	-- SetActiveItemSet falls back to itemSetOrderList[1] on its own if the id we just
+	-- deleted was the active one, so this is safe to call unconditionally.
+	build.itemsTab:SetActiveItemSet(build.itemsTab.activeItemSetId)
+	refreshBuild()
+	return { ok = true }
 end
 
 methods.equip_item_raw = function(params)

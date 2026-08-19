@@ -160,37 +160,111 @@ It never writes to it, so it runs fine alongside the app.
 ## What you can do with it
 
 Once your client is connected, start with `load_build`. Then use the other
-tools to inspect, change, and improve the build:
+tools to inspect, change, and improve the build. Every tool that changes the
+build also returns its updated `stats`, so you don't need a separate
+`get_stats` call to see the effect of a change. Each tool's full description
+(parameters, behavior, edge cases) shows up in your MCP client — the lists
+below are just names and a one-line summary, to help you find the right one.
 
-* **Load a build**: `load_build` (takes a PoB export code, a
-  pobb.in/Maxroll/poe.ninja pob-link/poe2db.tw/Pastebin.com/Rentry.co link,
-  a local `.xml` file path, or raw XML text), `new_build`,
-  `list_local_builds`.
-* **Inspect a build**: `get_stats`, `list_stat_keys`, `get_character`,
-  `list_classes`, `get_tree_state`, `node_info`, `search_tree`, `get_items`,
-  `get_skills`, `list_gems`, `get_config`, `list_config_options`,
-  `sanity_check`.
-* **Change a build**: `alloc_node`/`dealloc_node`, `node_path_cost`,
-  `select_class`, `equip_item_raw`/`unequip_item`, `add_socket_group`,
-  `set_main_skill`, `add_gem`/`remove_gem`/`set_gem`, `list_valid_supports`,
-  `set_config`.
+A note on ids: gems and classes are identified by an internal id, not their
+display name. Fireball's gem id, for example, is
+`"Metadata/Items/Gems/SkillGemFireball"`, and `select_class` takes an
+internal class id, not a simple 0-based index. Use `list_gems` and
+`list_classes` to look these up rather than guessing — a wrong gem id
+doesn't raise an error, it just silently fails to resolve, so the gem does
+nothing.
 
-  A note on gems: each gem has an internal id, and that id is not the same
-  as its display name. Fireball's id, for example, is
-  `"Metadata/Items/Gems/SkillGemFireball"`. Use `list_gems` to look up the
-  right id — don't guess it. A wrong guess doesn't raise an error. It just
-  silently fails to resolve, so the gem does nothing. The same goes for
-  classes: `select_class` takes an internal class id, not a simple
-  0-based index. Use `list_classes` to find it.
-* **Improve a build**: `optimize_build(goal="damage"|"defence"|"balanced", scope=[...])`
-  runs a goal-directed search over the passive tree, support gems, and
-  local unique items. It checks every candidate change against PoB's real
-  engine. See its own description in your MCP client for the full details,
-  including what it deliberately leaves alone.
-* **Compare or export**: `compare_builds`, `export_build`.
+<details>
+<summary><strong>Load a build</strong> (3 tools)</summary>
 
-Every tool that changes the build also returns its updated `stats`. You
-don't need a separate `get_stats` call to see the effect of a change.
+| Tool | What it does |
+|---|---|
+| `load_build` | Load a build from a PoB export code, a pobb.in/Maxroll/poe.ninja/poe2db.tw/Pastebin.com/Rentry.co link, a local `.xml` path, or raw XML text |
+| `new_build` | Start a brand-new, blank build (default class, no items or skills) |
+| `list_local_builds` | List `.xml` files in your PoB Builds folder |
+
+</details>
+
+<details>
+<summary><strong>Inspect a build</strong> (13 tools)</summary>
+
+| Tool | What it does |
+|---|---|
+| `get_stats` | Get calculated stats (life, ES, mana, resistances, DPS, EHP, etc.) from PoB's real engine |
+| `list_stat_keys` | List every stat key available from `get_stats` for this build |
+| `get_character` | Get class, ascendancy, and level |
+| `list_classes` | List every class and its ascendancies, for use with `select_class` |
+| `get_tree_state` | Get allocated passive tree node ids and count |
+| `node_info` | Get details for one passive tree node |
+| `search_tree` | Search the passive tree by name, stat text, type, or ascendancy |
+| `get_items` | List every gear/jewel slot and what's in it |
+| `get_skills` | List skill/socket groups and their gems |
+| `list_gems` | Look up a gem's internal id, for use with `add_gem` |
+| `get_config` | Get current configuration option values |
+| `list_config_options` | List every configuration option PoB supports |
+| `sanity_check` | Run defensive sanity checks (uncapped resists, low life, etc.) |
+
+</details>
+
+<details>
+<summary><strong>Change a build</strong> (13 tools)</summary>
+
+| Tool | What it does |
+|---|---|
+| `alloc_node` / `dealloc_node` | Allocate or deallocate a passive tree node (path auto-computed) |
+| `node_path_cost` | Get the point cost to reach a node, without allocating it |
+| `select_class` | Change class and/or ascendancy |
+| `equip_item_raw` / `unequip_item` | Equip raw in-game item text into a slot, or remove what's there |
+| `add_socket_group` | Create a new, empty skill/socket group |
+| `set_main_skill` | Set which socket group is used for DPS calculations |
+| `add_gem` / `remove_gem` / `set_gem` | Add, remove, or edit a gem's level/quality/enabled state |
+| `list_valid_supports` | List support gems PoB considers valid for a skill |
+| `set_config` | Set a configuration option |
+
+</details>
+
+<details>
+<summary><strong>Manage tree specs and gear sets</strong> (12 tools)</summary>
+
+A build can hold several named passive tree specs and several named gear
+sets, and switch between them. Once you switch one, every other tool
+(`get_tree_state`, `get_items`, and so on) acts on the one you switched to.
+
+| Tool | What it does |
+|---|---|
+| `list_specs` | List the build's passive tree specs |
+| `select_spec` | Switch the active passive tree spec |
+| `create_spec` | Create a new, blank passive tree spec |
+| `copy_spec` | Duplicate a passive tree spec |
+| `rename_spec` | Rename a passive tree spec |
+| `delete_spec` | Delete a passive tree spec (a build always needs at least one) |
+| `list_item_sets` | List the build's gear sets |
+| `select_item_set` | Switch the active gear set |
+| `create_item_set` | Create a new, empty gear set |
+| `copy_item_set` | Duplicate a gear set |
+| `rename_item_set` | Rename a gear set |
+| `delete_item_set` | Delete a gear set (a build always needs at least one) |
+
+</details>
+
+<details>
+<summary><strong>Improve a build</strong> (1 tool)</summary>
+
+| Tool | What it does |
+|---|---|
+| `optimize_build` | Run a goal-directed (`damage`/`defence`/`balanced`) search over the passive tree, support gems, and local unique items, scoring every candidate change against PoB's real engine |
+
+</details>
+
+<details>
+<summary><strong>Compare or export</strong> (2 tools)</summary>
+
+| Tool | What it does |
+|---|---|
+| `compare_builds` | Diff two builds side by side, without touching the build loaded in this session |
+| `export_build` | Export the loaded build as XML or a shareable code |
+
+</details>
 
 ## What this doesn't do (on purpose)
 

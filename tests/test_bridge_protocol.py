@@ -160,3 +160,86 @@ async def test_sanity_check_returns_a_list(bridge: BridgeProcess) -> None:
     await bridge.call("new_build", {"name": "pob-mcp test"})
     result = await bridge.call("sanity_check")
     assert isinstance(result["warnings"], list)
+
+
+@pytest.mark.asyncio
+async def test_spec_management_round_trip(bridge: BridgeProcess) -> None:
+    await bridge.call("new_build", {"name": "pob-mcp test"})
+    baseline = await bridge.call("list_specs")
+    assert len(baseline["specs"]) == 1
+
+    search = await bridge.call("search_tree", {"type": "Notable", "limit": 400})
+    node = next(n for n in search["nodes"] if n["pathCost"] is not None and not n["allocated"])
+    await bridge.call("alloc_node", {"id": node["id"]})
+    allocated_count = (await bridge.call("list_specs"))["specs"][0]["allocatedNodeCount"]
+    # list_specs' count must agree with get_tree_state's count for the active spec.
+    assert allocated_count == (await bridge.call("get_tree_state"))["allocatedNodeCount"]
+
+    created = await bridge.call("create_spec", {"title": "Alt Tree"})
+    assert created["ok"] is True
+    after_create = await bridge.call("list_specs")
+    assert len(after_create["specs"]) == 2
+    new_spec = after_create["specs"][created["index"] - 1]
+    # 1, not 0: the automatic class-start node is always allocated, same as a fresh new_build.
+    assert new_spec["allocatedNodeCount"] == 1, "a newly created spec must start with no extra nodes allocated"
+    assert new_spec["active"] is True, "create_spec activates by default"
+
+    await bridge.call("select_spec", {"index": 1})
+    assert (await bridge.call("list_specs"))["specs"][0]["active"] is True
+
+    copied = await bridge.call("copy_spec", {"title": "Copy"})
+    assert len((await bridge.call("list_specs"))["specs"]) == 3
+    await bridge.call("rename_spec", {"index": copied["index"], "title": "Renamed Copy"})
+    renamed = (await bridge.call("list_specs"))["specs"][copied["index"] - 1]
+    assert renamed["title"] == "Renamed Copy"
+    assert renamed["allocatedNodeCount"] == allocated_count, "a copy must carry over the source's allocation"
+
+    await bridge.call("delete_spec", {"index": copied["index"]})
+    remaining = (await bridge.call("list_specs"))["specs"]
+    assert len(remaining) == 2
+
+    while len(remaining) > 1:
+        await bridge.call("delete_spec", {"index": remaining[0]["index"]})
+        remaining = (await bridge.call("list_specs"))["specs"]
+    with pytest.raises(BridgeError):
+        # a build always needs at least one spec
+        await bridge.call("delete_spec", {"index": remaining[0]["index"]})
+
+
+@pytest.mark.asyncio
+async def test_item_set_management_round_trip(bridge: BridgeProcess) -> None:
+    await bridge.call("new_build", {"name": "pob-mcp test"})
+    baseline = await bridge.call("list_item_sets")
+    assert len(baseline["itemSets"]) == 1
+    default_id = baseline["itemSets"][0]["id"]
+
+    await bridge.call(
+        "equip_item_raw",
+        {
+            "text": (
+                "The Anvil\nBloodstone Amulet\nVariant: Current\nImplicits: 1\n"
+                "{tags:life}+(30-40) to maximum Life\n"
+            )
+        },
+    )
+    life_with_amulet = (await bridge.call("get_stats", {"fields": ["Life"]}))["stats"]["Life"]
+
+    created = await bridge.call("create_item_set", {"title": "Alt Gear"})
+    assert created["ok"] is True
+    life_on_new_set = (await bridge.call("get_stats", {"fields": ["Life"]}))["stats"]["Life"]
+    assert life_on_new_set < life_with_amulet, "a newly created item set must start empty"
+
+    await bridge.call("select_item_set", {"id": default_id})
+    life_after_switch_back = (await bridge.call("get_stats", {"fields": ["Life"]}))["stats"]["Life"]
+    assert life_after_switch_back == life_with_amulet, "switching back must restore the equipped amulet"
+
+    copied = await bridge.call("copy_item_set", {"title": "Backup"})
+    assert len((await bridge.call("list_item_sets"))["itemSets"]) == 3
+    await bridge.call("rename_item_set", {"id": copied["id"], "title": "Renamed Backup"})
+    renamed = next(s for s in (await bridge.call("list_item_sets"))["itemSets"] if s["id"] == copied["id"])
+    assert renamed["title"] == "Renamed Backup"
+
+    await bridge.call("delete_item_set", {"id": created["id"]})
+    remaining_ids = {s["id"] for s in (await bridge.call("list_item_sets"))["itemSets"]}
+    assert created["id"] not in remaining_ids
+    assert len(remaining_ids) == 2
